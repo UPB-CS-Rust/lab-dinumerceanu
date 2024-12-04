@@ -5,6 +5,11 @@
 pub enum LocalStorageVec<T, const N: usize> {
     // TODO add some variants containing data
     // to make the compiler happy
+    Stack {
+        len: usize, 
+        buf: [T; N],
+    },
+    Heap(Vec<T>),
 }
 
 // **Below `From` implementation is used in the tests and are therefore given. However,
@@ -47,6 +52,14 @@ where
     }
 }
 
+impl <T, const N: usize> From<Vec<T>> for LocalStorageVec<T, N>
+where T: Default, 
+{
+    fn from(arr: Vec<T>) -> Self {
+        Self::Heap(Vec::from(arr))
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::LocalStorageVec;
@@ -78,53 +91,98 @@ mod test {
     }
 
     // Uncomment me for part B
-    // #[test]
-    // fn it_from_vecs() {
-    //     // The `vec!` macro creates a `Vec<T>` in a way that resembles
-    //     // array-initialization syntax.
-    //     let vec: LocalStorageVec<usize, 10> = LocalStorageVec::from(vec![1, 2, 3]);
-    //     // Assert that the call to `from` indeed yields a `Heap` variant
-    //     assert!(matches!(vec, LocalStorageVec::Heap(_)));
-    //
-    //     let vec: LocalStorageVec<usize, 2> = LocalStorageVec::from(vec![1, 2, 3]);
-    //
-    //     assert!(matches!(vec, LocalStorageVec::Heap(_)));
-    // }
+    #[test]
+    fn it_from_vecs() {
+        // The `vec!` macro creates a `Vec<T>` in a way that resembles
+        // array-initialization syntax.
+        let vec: LocalStorageVec<usize, 10> = LocalStorageVec::from(vec![1, 2, 3]);
+        // Assert that the call to `from` indeed yields a `Heap` variant
+        assert!(matches!(vec, LocalStorageVec::Heap(_)));
+    
+        let vec: LocalStorageVec<usize, 2> = LocalStorageVec::from(vec![1, 2, 3]);
+    
+        assert!(matches!(vec, LocalStorageVec::Heap(_)));
+    }
+
+    impl <T, const N: usize> AsRef<[T]> for LocalStorageVec<T, N>
+    where T: Default,
+    {
+        fn as_ref(&self) -> &[T] {
+            match self {
+                LocalStorageVec::Stack {buf, len} => &buf[..*len],
+                LocalStorageVec::Heap(v) => &v.as_slice(),
+            }
+        }
+    }
+
+    impl <T, const N: usize> AsMut<[T]> for LocalStorageVec<T, N>
+    where T: Default,
+    {
+        fn as_mut(&mut self) -> &mut [T] {
+            match self {
+                LocalStorageVec::Stack {buf, len} => buf[..*len].as_mut(),
+                LocalStorageVec::Heap(v) => v.as_mut_slice(),
+            }
+        }
+    }
 
     // Uncomment me for part C
-    // #[test]
-    // fn it_as_refs() {
-    //     let vec: LocalStorageVec<i32, 256> = LocalStorageVec::from([0; 128]);
-    //     let slice: &[i32] = vec.as_ref();
-    //     assert!(slice.len() == 128);
-    //     let vec: LocalStorageVec<i32, 32> = LocalStorageVec::from([0; 128]);
-    //     let slice: &[i32] = vec.as_ref();
-    //     assert!(slice.len() == 128);
-    //
-    //     let mut vec: LocalStorageVec<i32, 256> = LocalStorageVec::from([0; 128]);
-    //     let slice_mut: &[i32] = vec.as_mut();
-    //     assert!(slice_mut.len() == 128);
-    //     let mut vec: LocalStorageVec<i32, 32> = LocalStorageVec::from([0; 128]);
-    //     let slice_mut: &[i32] = vec.as_mut();
-    //     assert!(slice_mut.len() == 128);
-    // }
+    #[test]
+    fn it_as_refs() {
+        let vec: LocalStorageVec<i32, 256> = LocalStorageVec::from([0; 128]);
+        let slice: &[i32] = vec.as_ref();
+        assert!(slice.len() == 128);
+        let vec: LocalStorageVec<i32, 32> = LocalStorageVec::from([0; 128]);
+        let slice: &[i32] = vec.as_ref();
+        assert!(slice.len() == 128);
+    
+        let mut vec: LocalStorageVec<i32, 256> = LocalStorageVec::from([0; 128]);
+        let slice_mut: &[i32] = vec.as_mut();
+        assert!(slice_mut.len() == 128);
+        let mut vec: LocalStorageVec<i32, 32> = LocalStorageVec::from([0; 128]);
+        let slice_mut: &[i32] = vec.as_mut();
+        assert!(slice_mut.len() == 128);
+    }
+
+    impl <T, const N: usize> LocalStorageVec<T, N>
+    where T: Default + std::marker::Copy,
+    {
+        pub fn new() -> Self {
+            LocalStorageVec::Stack {
+                buf: [T::default(); N],
+                len: 0,
+            }
+        }
+    }
 
     // Uncomment me for part D
-    // #[test]
-    // fn it_constructs() {
-    //     let vec: LocalStorageVec<usize, 10> = LocalStorageVec::new();
-    //     // Assert that the call to `new` indeed yields a `Stack` variant with zero length
-    //     assert!(matches!(vec, LocalStorageVec::Stack { buf: _, len: 0 }));
-    // }
+    #[test]
+    fn it_constructs() {
+        let vec: LocalStorageVec<usize, 10> = LocalStorageVec::new();
+        // Assert that the call to `new` indeed yields a `Stack` variant with zero length
+        assert!(matches!(vec, LocalStorageVec::Stack { buf: _, len: 0 }));
+    }
+
+    impl <T, const N: usize> LocalStorageVec<T, N>
+    where T: Default,
+    {
+        fn len(&self) -> usize {
+            match self {
+                LocalStorageVec::Stack {buf, len} => return *len,
+                LocalStorageVec::Heap(v) => return v.len(),
+            }
+        }
+        
+    }
 
     // Uncomment me for part D
-    // #[test]
-    // fn it_lens() {
-    //     let vec: LocalStorageVec<_, 3> = LocalStorageVec::from([0, 1, 2]);
-    //     assert_eq!(vec.len(), 3);
-    //     let vec: LocalStorageVec<_, 2> = LocalStorageVec::from([0, 1, 2]);
-    //     assert_eq!(vec.len(), 3);
-    // }
+    #[test]
+    fn it_lens() {
+        let vec: LocalStorageVec<_, 3> = LocalStorageVec::from([0, 1, 2]);
+        assert_eq!(vec.len(), 3);
+        let vec: LocalStorageVec<_, 2> = LocalStorageVec::from([0, 1, 2]);
+        assert_eq!(vec.len(), 3);
+    }
 
     // Uncomment me for part D
     // #[test]
